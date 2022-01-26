@@ -6,3 +6,8 @@ dependencies:
   - ipympl
   - scipy
   - scikit-rf
+  - nptdms
+  - tqdm
+  - pandas
+  - numpy
+  

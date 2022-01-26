@@ -1,8 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import os
 from tqdm import tqdm
 from nptdms import TdmsFile
+from scipy.interpolate import interp1d
 
 # Allows copy/paste to clipboard using crtl+c command
 plt.rcParams['toolbar'] = 'toolmanager'
@@ -22,6 +24,9 @@ class TResonatorData():
         data : TResonatorData object 
 
         '''
+        # calibration directory
+        self.cal_dir = os.path.dirname(os.path.abspath(__file__))+'/calibrations/'
+        
         # raw data are store in an internal dictionnary
         self._raw_data = {}
         
@@ -68,8 +73,14 @@ class TResonatorData():
             self._df['time_seconds'] = self._df.index.total_seconds() # time in seconds (for plots)
             
             # # Post processing
-            # self.raw_TOS_to_RL()
-            # self.raw_V_to_V()
+            self.raw_V_to_Vprobe()
+            self.Vprobe_to_Vmax_and_Imax()
+            self.raw_P_to_P()
+            self.raw_Vac_to_Vac()
+            self.raw_Tc_to_Tc()
+
+
+            # self.raw_TOS_to_RL()            
             # self.raw_vac_to_vac()
             # self.raw_Piout_to_Piout()
             # self.raw_Piin_to_Piin()
@@ -113,3 +124,118 @@ class TResonatorData():
         '''
         return self._raw_data
   
+    def raw_P_to_P(self):
+        """
+        Process the raw power signals.
+        
+        The results are power in watts
+        """
+        cal_Pi = pd.read_csv(self.cal_dir+'SSA84_TaskB_calibration_Pi.csv', sep=';')
+        cal_Pr = pd.read_csv(self.cal_dir+'SSA84_TaskB_calibration_Pr.csv', sep=';')
+        # takes the calibration coefficients the closest to the gene frequency
+        closest_Pi = cal_Pi.iloc[(cal_Pi['f [MHz]'] - self.fMHz).abs().argsort()][:1]
+        closest_Pr = cal_Pr.iloc[(cal_Pr['f [MHz]'] - self.fMHz).abs().argsort()][:1]
+        # dB -> W
+        self._df['Pi [W]'] = 10**((closest_Pi['a'].values*self._df['Pi_raw'] + closest_Pi['b'].values + closest_Pi['att'].values)/10.0)
+        self._df['Pr [W]'] = 10**((closest_Pr['a'].values*self._df['Pr_raw'] + closest_Pr['b'].values + closest_Pr['att'].values)/10.0)
+  
+    def raw_V_to_Vprobe(self):
+        '''
+        Process the raw probe voltage signals.
+        
+        The results are voltage in Volt.
+        '''
+        ## calibration data
+        cal_V1 = pd.read_csv(self.cal_dir+'SSA84_TaskB_VoltageProbeV1.csv', sep=';')
+        cal_V2 = pd.read_csv(self.cal_dir+'SSA84_TaskB_VoltageProbeV2.csv', sep=';')
+        cal_V3 = pd.read_csv(self.cal_dir+'SSA84_TaskB_VoltageProbeV3.csv', sep=';')
+        # takes the calibration coefficients the closest to the gene frequency
+        closest_V1 = cal_V1.iloc[(cal_V1['f [MHz]'] - self.fMHz).abs().argsort()][:5]
+        closest_V2 = cal_V2.iloc[(cal_V2['f [MHz]'] - self.fMHz).abs().argsort()][:5]
+        closest_V3 = cal_V3.iloc[(cal_V3['f [MHz]'] - self.fMHz).abs().argsort()][:5]
+        # interpolate PdB = a*Vdc + b        
+        V1dc_2_PdB = interp1d(closest_V1['NI-dacq(Vdc)'], closest_V1['Pin.(dBm)'], fill_value="extrapolate")
+        V2dc_2_PdB = interp1d(closest_V2['NI-dacq(Vdc)'], closest_V2['Pin.(dBm)'], fill_value="extrapolate")
+        V3dc_2_PdB = interp1d(closest_V3['NI-dacq(Vdc)'], closest_V3['Pin.(dBm)'], fill_value="extrapolate")
+
+        cal_ProbeGains = pd.read_csv(self.cal_dir+'SSA84_TaskB_VoltageProbeGains.csv', sep=';')
+        ProbeAGain = np.interp(self.fMHz, cal_ProbeGains['f [MHz]'], cal_ProbeGains['ProbeA [dB]'])
+        ProbeBGain = np.interp(self.fMHz, cal_ProbeGains['f [MHz]'], cal_ProbeGains['ProbeB [dB]'])
+        ProbeCGain = np.interp(self.fMHz, cal_ProbeGains['f [MHz]'], cal_ProbeGains['ProbeC [dB]'])
+
+        ## channel V1 <-> probe A. NB: Cable loss is included in the V1 calibration
+        self._df['V1 [dB]'] = V1dc_2_PdB(self._df['V1_raw'])
+        self._df['V1 [V]'] = np.sqrt(2*30/1000 * 10**((self._df['V1 [dB]'] + ProbeAGain)/10))
+
+        ## channel V2 <-> probe C. NB: Cable loss is included in the V1 calibration
+        self._df['V2 [dB]'] = V2dc_2_PdB(self._df['V2_raw'])
+        self._df['V2 [V]'] = np.sqrt(2*30/1000 * 10**((self._df['V2 [dB]'] + ProbeCGain)/10))
+
+    def raw_Vac_to_Vac(self):
+        """
+        Process pressure signals.
+        
+        The results are pressure in Pa.
+        """
+        # Pfeiffer PKR 361
+        def p(U):
+            d = 9.333
+            return 10**(1.667*U - d)
+
+        self._df['JR3'] = p(self._df['JR3_raw'])
+        self._df['JR4'] = p(self._df['JR4_raw'])
+        
+    def raw_Tc_to_Tc(self):
+        """
+        Process the thermocouple signals.
+        
+        The results are in degree C
+        """
+        cal_Tc = pd.read_csv(self.cal_dir+'SSA84_TaskB_calibration_TC.csv', sep=';')
+        Tc1_to_T = interp1d(cal_Tc['Tin (degC)'], cal_Tc['TC1 (Vdc)'], fill_value="extrapolate")
+        Tc2_to_T = interp1d(cal_Tc['Tin (degC)'], cal_Tc['TC2 (Vdc)'], fill_value="extrapolate")
+        Tc3_to_T = interp1d(cal_Tc['Tin (degC)'], cal_Tc['TC3 (Vdc)'], fill_value="extrapolate")
+        Tc4_to_T = interp1d(cal_Tc['Tin (degC)'], cal_Tc['TC4 (Vdc)'], fill_value="extrapolate")
+        
+        self._df['TC1'] = Tc1_to_T(self._df['TC1_raw'])
+        self._df['TC2'] = Tc2_to_T(self._df['TC2_raw'])
+        self._df['TC3'] = Tc3_to_T(self._df['TC3_raw'])
+        self._df['TC4'] = Tc4_to_T(self._df['TC4_raw'])        
+        
+        
+    def Vprobe_to_Vmax_and_Imax(self):
+        """
+        Deduce the max voltage and currents from the measured voltages.
+        
+        The voltage probes are located:
+            - from the T-middle for probe A (Tuning side)
+                241 + (165+395)/2*(pi/2) + 552.5 ~ 1233 mm. 
+                HFSS gives 1239 mm
+              --> 1236 mm +/- 3 mm
+                
+            - from the T-middle for probe C (DUT side)
+                175 + 485 mm = 660 mm (theoretical from CAD)
+                (from measured)
+              --> 660 mm +/- TBD
+                We can use the same uncertainty
+        
+        """
+        # VprobeCEA -> V max CEA: 1.000399052468527
+        # VprobeDUT -> V max DUT: 1.194556380161787
+        # VprobeCEA -> I short CEA: 0.03372662249801389
+        # VprobeDUT -> I short DUT: 0.06329607347946643
+      
+
+        # VprobeCEA -> V max CEA: 1.000560031267852
+        # VprobeDUT -> V max DUT: 1.2012721011809484
+        # VprobeCEA -> I short CEA: 0.03374709546042175
+        # VprobeDUT -> I short DUT: 0.06368098648604123
+
+        self._df['V_CEA_max'] = 1.0006 * self._df['V1 [V]']
+        self._df['V_DUT_max'] = 1.2013 * self._df['V2 [V]']
+        
+        self._df['I_CEA_max'] = 0.0338 * self._df['V1 [V]']
+        self._df['I_DUT_max'] = 0.0637 * self._df['V2 [V]']
+        
+        
+        
