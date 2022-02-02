@@ -157,18 +157,21 @@ class TResonatorData():
         V1dc_2_PdB = interp1d(closest_V1['NI-dacq(Vdc)'], closest_V1['Pin.(dBm)'], fill_value="extrapolate")
         V2dc_2_PdB = interp1d(closest_V2['NI-dacq(Vdc)'], closest_V2['Pin.(dBm)'], fill_value="extrapolate")
         V3dc_2_PdB = interp1d(closest_V3['NI-dacq(Vdc)'], closest_V3['Pin.(dBm)'], fill_value="extrapolate")
-
+        
+        # probe gain (warning : postitive values)
         cal_ProbeGains = pd.read_csv(self.cal_dir+'SSA84_TaskB_VoltageProbeGains.csv', sep=';')
-        ProbeAGain = np.interp(self.fMHz, cal_ProbeGains['f [MHz]'], cal_ProbeGains['ProbeA [dB]'])
-        ProbeBGain = np.interp(self.fMHz, cal_ProbeGains['f [MHz]'], cal_ProbeGains['ProbeB [dB]'])
-        ProbeCGain = np.interp(self.fMHz, cal_ProbeGains['f [MHz]'], cal_ProbeGains['ProbeC [dB]'])
+        ProbeAGain = np.abs(np.interp(self.fMHz, cal_ProbeGains['f [MHz]'], cal_ProbeGains['ProbeA [dB]']))
+        ProbeBGain = np.abs(np.interp(self.fMHz, cal_ProbeGains['f [MHz]'], cal_ProbeGains['ProbeB [dB]']))
+        ProbeCGain = np.abs(np.interp(self.fMHz, cal_ProbeGains['f [MHz]'], cal_ProbeGains['ProbeC [dB]']))
 
         ## channel V1 <-> probe A. NB: Cable loss is included in the V1 calibration
         self._df['V1 [dB]'] = V1dc_2_PdB(self._df['V1_raw'])
+        # self._df['V1 [dB]'] = 3.2253 * self._df['V1_raw'] - 2.913  # verif @ 61.5 MHz
         self._df['V1 [V]'] = np.sqrt(2*30/1000 * 10**((self._df['V1 [dB]'] + ProbeAGain)/10))
 
         ## channel V2 <-> probe C. NB: Cable loss is included in the V1 calibration
         self._df['V2 [dB]'] = V2dc_2_PdB(self._df['V2_raw'])
+        # self._df['V2 [dB]'] = 3.2208 * self._df['V2_raw'] - 2.7765  # verif @ 61.5 MHz
         self._df['V2 [V]'] = np.sqrt(2*30/1000 * 10**((self._df['V2 [dB]'] + ProbeCGain)/10))
 
     def raw_Vac_to_Vac(self):
