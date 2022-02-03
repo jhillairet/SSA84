@@ -136,8 +136,8 @@ class TResonatorData():
         closest_Pi = cal_Pi.iloc[(cal_Pi['f [MHz]'] - self.fMHz).abs().argsort()][:1]
         closest_Pr = cal_Pr.iloc[(cal_Pr['f [MHz]'] - self.fMHz).abs().argsort()][:1]
         # dB -> W
-        self._df['Pi [W]'] = 10**((closest_Pi['a'].values*self._df['Pi_raw'] + closest_Pi['b'].values + closest_Pi['att'].values)/10.0)
-        self._df['Pr [W]'] = 10**((closest_Pr['a'].values*self._df['Pr_raw'] + closest_Pr['b'].values + closest_Pr['att'].values)/10.0)
+        self._df['Pi [W]'] = 10**((closest_Pi['a'].values*self._df['Pi_raw'] + closest_Pi['b'].values + closest_Pi['att'].values)/10.0)/1e3
+        self._df['Pr [W]'] = 10**((closest_Pr['a'].values*self._df['Pr_raw'] + closest_Pr['b'].values + closest_Pr['att'].values)/10.0)/1e3
   
     def raw_V_to_Vprobe(self):
         '''
