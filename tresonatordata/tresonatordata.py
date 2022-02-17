@@ -148,6 +148,8 @@ class TResonatorData():
         # dB -> W
         self._df['Pi [W]'] = 10**((closest_Pi['a'].values*self._df['Pi_raw'] + closest_Pi['b'].values + closest_Pi['att'].values)/10.0)/1e3
         self._df['Pr [W]'] = 10**((closest_Pr['a'].values*self._df['Pr_raw'] + closest_Pr['b'].values + closest_Pr['att'].values)/10.0)/1e3
+        # Return Loss at generator
+        self._df['RL [dB]'] = 10*np.log10(self._df['Pr [W]']/self._df['Pi [W]'])
   
     def raw_V_to_Vprobe(self):
         '''
