@@ -195,10 +195,10 @@ class TResonatorData():
         The results are in degree C
         """
         cal_Tc = pd.read_csv(self.cal_dir+'SSA84_TaskB_calibration_TC.csv', sep=';')
-        Tc1_to_T = interp1d(cal_Tc['Tin (degC)'], cal_Tc['TC1 (Vdc)'], fill_value="extrapolate")
-        Tc2_to_T = interp1d(cal_Tc['Tin (degC)'], cal_Tc['TC2 (Vdc)'], fill_value="extrapolate")
-        Tc3_to_T = interp1d(cal_Tc['Tin (degC)'], cal_Tc['TC3 (Vdc)'], fill_value="extrapolate")
-        Tc4_to_T = interp1d(cal_Tc['Tin (degC)'], cal_Tc['TC4 (Vdc)'], fill_value="extrapolate")
+        Tc1_to_T = interp1d(cal_Tc['TC1 (Vdc)'], cal_Tc['Tin (degC)'], fill_value="extrapolate")
+        Tc2_to_T = interp1d(cal_Tc['TC2 (Vdc)'], cal_Tc['Tin (degC)'], fill_value="extrapolate")
+        Tc3_to_T = interp1d(cal_Tc['TC3 (Vdc)'], cal_Tc['Tin (degC)'], fill_value="extrapolate")
+        Tc4_to_T = interp1d(cal_Tc['TC4 (Vdc)'], cal_Tc['Tin (degC)'], fill_value="extrapolate")
         
         self._df['TC1'] = Tc1_to_T(self._df['TC1_raw'])
         self._df['TC2'] = Tc2_to_T(self._df['TC2_raw'])
