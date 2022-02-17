@@ -24,13 +24,19 @@ class TResonatorData():
         data : TResonatorData object 
 
         '''
+        if not exists(filename):
+            raise FileNotFoundError()('file not found!')
+        
         # calibration directory
         self.cal_dir = os.path.dirname(os.path.abspath(__file__))+'/calibrations/'
         
         # raw data are store in an internal dictionnary
         self._raw_data = {}
-        
-        self.fMHz = float(tdms_filename.split('_')[-1].split('.')[0].replace(',', '.').strip('M').strip('F'))
+
+        # extract frequency and date from filename        
+        self.fMHz = float(filename.split('_')[-1].split('.')[0].replace(',', '.').strip('M').strip('F'))
+        self.date = filename.split('/')[-1].split('_')[1]
+        self.time = filename.split('/')[-1].split('_')[2]
     
         try:
             print(f'Reading {tdms_filename} data... please wait...')
@@ -80,13 +86,8 @@ class TResonatorData():
             self.raw_Tc_to_Tc()
 
 
-            # self.raw_TOS_to_RL()            
-            # self.raw_vac_to_vac()
-            # self.raw_Piout_to_Piout()
-            # self.raw_Piin_to_Piin()
-            # self.raw_Pgen_to_Pgen()
-            # self.raw_Tc_to_Tc()
-            # self.raw_Vm_to_Pm()
+            else:
+                raise ValueError('Unknown file type.')
 
         except Exception as e: # hu ho...
             print(e)
