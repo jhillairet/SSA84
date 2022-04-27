@@ -26,7 +26,7 @@ class TResonatorData():
 
         '''
         if not exists(filename):
-            raise FileNotFoundError()('file not found!')
+            raise FileNotFoundError(f'file {filename} not found!')
         
         # calibration directory
         self.cal_dir = os.path.dirname(os.path.abspath(__file__))+'/calibrations/'
@@ -215,6 +215,11 @@ class TResonatorData():
         self._df['TC3'] = Tc3_to_T(self._df['TC3_raw'])
         self._df['TC4'] = Tc4_to_T(self._df['TC4_raw'])        
         
+        # Smooth temperature
+        self._df['TC1_smooth'] = self._df['TC1'].ewm(span = 100).mean()
+        self._df['TC2_smooth'] = self._df['TC2'].ewm(span = 100).mean()
+        self._df['TC3_smooth'] = self._df['TC3'].ewm(span = 100).mean()
+        self._df['TC4_smooth'] = self._df['TC4'].ewm(span = 100).mean()        
         
     def Vprobe_to_Vmax_and_Imax(self):
         """
