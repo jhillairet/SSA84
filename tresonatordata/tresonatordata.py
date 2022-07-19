@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+"""
+T-resonator data analysis convenience classes and functions.
+
+J.Hillairet, 2022
+"""
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -276,4 +282,143 @@ class TResonatorData():
         # export to HDF
         _df.to_hdf(filename, 'SSA84')
         
-        
+
+def find_shots_indices(array, threshold):
+    """
+    Returns the start and stop arrays indices corresponding to RF shot.
+
+    Parameters
+    ----------
+    array : numpy array
+        Array to threshold on
+    threshold : float
+        threshold to appy
+
+    Returns
+    -------
+    idx_starts : list of int
+    idx_stops : list of int
+    """
+    # indices of values above threshold
+    idx_thres = np.nonzero(array > threshold)[0]
+    if idx_thres.size > 0:  # not empty
+        # find indices where we change the RF shot   
+        idx_starts = np.append(idx_thres[0], idx_thres[1:][np.diff(idx_thres) > 1])
+        idx_stops = np.append(idx_thres[0:-1][np.diff(idx_thres) > 1], idx_thres[-1])
+ 
+        return idx_starts, idx_stops
+    else:
+        return None, None
+
+def split_array(array, idx_starts, idx_stops):
+    """
+    Split an numerical array into sub-arrays according to start and stop indices.
+
+    Parameters
+    ----------
+    array : numpy array
+    idx_starts : list of int
+    idx_stops : list of int
+
+    Returns
+    -------
+    arrays : list of array
+    """
+    arrays = []    
+    for idx_start, idx_stop in zip(idx_starts, idx_stops):
+        arrays.append(array[idx_start:idx_stop])
+    return arrays
+
+def stats(subarray_list):
+    """
+    Extract the (mean, std, min, max) values of each subarrays
+
+    Parameters
+    ----------
+    subarray_list : list of numpy array
+
+    Returns
+    -------
+    stats : list of array
+
+    """
+    stats = []
+    for arr in subarray_list:
+        if arr.size > 0: # not empty
+            stats.append([np.mean(arr), np.std(arr), np.min(arr), np.max(arr)])
+
+    return stats
+
+def create_resumed_parameters(hdf_files):
+    """
+    Return the resumed parameters (mean, std, min, max) of resonator data.
+
+    Parameters
+    ----------
+    hdf_files : list
+        list of HDF files
+
+    Returns
+    -------
+    db : pd.DataFrame
+        resumed data.
+
+    """
+    V1_stats = []
+    V2_stats = []
+    Pi_stats = []
+    Pr_stats = []
+    JR3_stats = []
+    JR4_stats = []
+    time_stats = []
+    pulse_lengths = []
+    
+    for hdf_file in tqdm(hdf_files):
+        data = TResonatorData(hdf_file)
+    
+        idx_starts, idx_stops = find_shots_indices(data.df['V1 [V]'].values, 50)
+    
+        if idx_starts is not None:
+            times = split_array(data.df['time_absolute'].values, idx_starts, idx_stops)
+            subV1s = split_array(data.df['V1 [V]'].values, idx_starts, idx_stops)
+            subV2s = split_array(data.df['V2 [V]'].values, idx_starts, idx_stops)
+            subPis = split_array(data.df['Pi [W]'].values, idx_starts, idx_stops)
+            subPrs = split_array(data.df['Pr [W]'].values, idx_starts, idx_stops)
+            subJR3s = split_array(data.df['JR3'].values, idx_starts, idx_stops)
+            subJR4s = split_array(data.df['JR4'].values, idx_starts, idx_stops)        
+            
+            # calculate the pulse duration in seconds
+            durations = []
+            for idx, time in enumerate(idx_starts):
+                durations.append((data.df['time_absolute'][idx_stops][idx] - data.df['time_absolute'][idx_starts][idx]).total_seconds())
+            pulse_lengths.append(durations)
+
+            time_stats.append([t.flatten()[0] for t in times if t.size > 0])
+            V1_stats.append(stats(subV1s))
+            V2_stats.append(stats(subV2s))
+            Pi_stats.append(stats(subPis))
+            Pr_stats.append(stats(subPrs))
+            JR3_stats.append(stats(subJR3s))
+            JR4_stats.append(stats(subJR4s))
+    
+    times_mmm = np.hstack(np.array(time_stats, dtype=object))
+    V1_mmm = np.vstack(np.array(V1_stats, dtype=object))
+    V2_mmm = np.vstack(np.array(V2_stats, dtype=object))
+    Pi_mmm = np.vstack(np.array(Pi_stats, dtype=object))
+    Pr_mmm = np.vstack(np.array(Pr_stats, dtype=object))
+    JR3_mmm = np.vstack(np.array(JR3_stats, dtype=object))
+    JR4_mmm = np.vstack(np.array(JR4_stats, dtype=object))
+    pulse_lengths_mmm = np.hstack(np.array(pulse_lengths, dtype=object))
+    # remove zero lengths pulse
+    pulse_lengths_mmm = pulse_lengths_mmm[pulse_lengths_mmm != 0]
+    
+    db = pd.DataFrame(data={
+        'V1_mean': V1_mmm[:,0], 'V1_std': V1_mmm[:,1], 'V1_min': V1_mmm[:,2], 'V1_max': V1_mmm[:,3],
+        'V2_mean': V2_mmm[:,0], 'V2_std': V2_mmm[:,1], 'V2_min': V2_mmm[:,2], 'V2_max': V2_mmm[:,3],
+        'Pi_mean': Pi_mmm[:,0], 'Pi_std': Pi_mmm[:,1], 'Pi_min': Pi_mmm[:,2], 'Pi_max': Pi_mmm[:,3],
+        'Pr_mean': Pr_mmm[:,0], 'Pr_std': Pr_mmm[:,1], 'Pr_min': Pr_mmm[:,2], 'Pr_max': Pr_mmm[:,3],
+        'JR3_mean': JR3_mmm[:,0], 'JR3_std': JR3_mmm[:,1], 'JR3_min': JR3_mmm[:,2], 'JR3_max': JR3_mmm[:,3],
+        'JR4_mean': JR4_mmm[:,0], 'JR4_std': JR4_mmm[:,1], 'JR4_min': JR4_mmm[:,2], 'JR4_max': JR4_mmm[:,3],
+        'pulse_length': pulse_lengths_mmm
+        }, index=pd.DatetimeIndex(data=times_mmm, yearfirst=True))
+    return db
