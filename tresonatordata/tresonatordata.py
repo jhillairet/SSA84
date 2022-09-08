@@ -366,6 +366,8 @@ def create_resumed_parameters(hdf_files):
     """
     V1_stats = []
     V2_stats = []
+    I_CEA_stats = []
+    I_DUT_stats = []
     Pi_stats = []
     Pr_stats = []
     JR3_stats = []
@@ -382,6 +384,8 @@ def create_resumed_parameters(hdf_files):
             times = split_array(data.df['time_absolute'].values, idx_starts, idx_stops)
             subV1s = split_array(data.df['V1 [V]'].values, idx_starts, idx_stops)
             subV2s = split_array(data.df['V2 [V]'].values, idx_starts, idx_stops)
+            subI_CEAs = split_array(data.df['I_CEA_max'].values, idx_starts, idx_stops)
+            subI_DUTs = split_array(data.df['I_DUT_max'].values, idx_starts, idx_stops)          
             subPis = split_array(data.df['Pi [W]'].values, idx_starts, idx_stops)
             subPrs = split_array(data.df['Pr [W]'].values, idx_starts, idx_stops)
             subJR3s = split_array(data.df['JR3'].values, idx_starts, idx_stops)
@@ -396,6 +400,8 @@ def create_resumed_parameters(hdf_files):
             time_stats.append([t.flatten()[0] for t in times if t.size > 0])
             V1_stats.append(stats(subV1s))
             V2_stats.append(stats(subV2s))
+            I_CEA_stats.append(stats(subI_CEAs))
+            I_DUT_stats.append(stats(subI_DUTs))
             Pi_stats.append(stats(subPis))
             Pr_stats.append(stats(subPrs))
             JR3_stats.append(stats(subJR3s))
@@ -404,6 +410,8 @@ def create_resumed_parameters(hdf_files):
     times_mmm = np.hstack(np.array(time_stats, dtype=object))
     V1_mmm = np.vstack(np.array(V1_stats, dtype=object))
     V2_mmm = np.vstack(np.array(V2_stats, dtype=object))
+    I_CEA_mmm = np.vstack(np.array(I_CEA_stats, dtype=object))
+    I_DUT_mmm = np.vstack(np.array(I_DUT_stats, dtype=object))    
     Pi_mmm = np.vstack(np.array(Pi_stats, dtype=object))
     Pr_mmm = np.vstack(np.array(Pr_stats, dtype=object))
     JR3_mmm = np.vstack(np.array(JR3_stats, dtype=object))
@@ -415,6 +423,8 @@ def create_resumed_parameters(hdf_files):
     db = pd.DataFrame(data={
         'V1_mean': V1_mmm[:,0], 'V1_std': V1_mmm[:,1], 'V1_min': V1_mmm[:,2], 'V1_max': V1_mmm[:,3],
         'V2_mean': V2_mmm[:,0], 'V2_std': V2_mmm[:,1], 'V2_min': V2_mmm[:,2], 'V2_max': V2_mmm[:,3],
+        'I_CEA_mean': I_CEA_mmm[:,0], 'I_CEA_std': I_CEA_mmm[:,1], 'I_CEA_min': I_CEA_mmm[:,2], 'I_CEA_max': I_CEA_mmm[:,3],
+        'I_DUT_mean': I_DUT_mmm[:,0], 'I_DUT_std': I_DUT_mmm[:,1], 'I_DUT_min': I_DUT_mmm[:,2], 'I_DUT_max': I_DUT_mmm[:,3],
         'Pi_mean': Pi_mmm[:,0], 'Pi_std': Pi_mmm[:,1], 'Pi_min': Pi_mmm[:,2], 'Pi_max': Pi_mmm[:,3],
         'Pr_mean': Pr_mmm[:,0], 'Pr_std': Pr_mmm[:,1], 'Pr_min': Pr_mmm[:,2], 'Pr_max': Pr_mmm[:,3],
         'JR3_mean': JR3_mmm[:,0], 'JR3_std': JR3_mmm[:,1], 'JR3_min': JR3_mmm[:,2], 'JR3_max': JR3_mmm[:,3],
