@@ -282,6 +282,100 @@ class TResonatorData():
         # export to HDF
         _df.to_hdf(filename, 'SSA84')
         
+    def plot(self, backend='matplotlib'):
+        """
+        Plot the data.
+
+        Parameters
+        ----------
+        backend : str, optional
+            Backend to plot the data with: 'matplotlib', 'hvplot' or 'pyqtgraph'.
+            The default is 'matplotlib'.
+
+        """
+        if backend == 'matplotlib':
+            _df = self.df
+            
+            fig, ax = plt.subplots(5, 1, sharex=True)
+            _df.plot(y='Pi [W]', ax=ax[0])
+            _df.plot(y='Pr [W]', ax=ax[0])
+
+            _df.plot(y='V1 [V]', ax=ax[1])
+            _df.plot(y='V2 [V]', ax=ax[1])
+
+            _df.plot(y='I_CEA_max', ax=ax[2])
+            _df.plot(y='I_DUT_max', ax=ax[2])
+
+            _df.plot(y='JR3', ax=ax[3])
+            _df.plot(y='JR4', ax=ax[3])
+
+            ax[3].set_yscale('log')
+
+            _df.plot(y='TC1', ax=ax[4])
+            _df.plot(y='TC2', ax=ax[4])
+            _df.plot(y='TC3', ax=ax[4])
+            _df.plot(y='TC4', ax=ax[4])
+
+            ax[0].set_title(f'SSA84 - {self.date} - {self.time} - f={self.fMHz} MHz')
+            fig.autofmt_xdate(rotation=45)
+            return fig, ax
+        elif backend == 'pyqtgraph':
+            try:
+                import pyqtgraph as pg
+                import matplotlib.dates as mdates
+            except ImportError as e:
+                print(e)
+            pg.setConfigOption('background', 'w')
+            pg.setConfigOption('foreground', 'k')
+            pg.setConfigOptions(antialias=True)  # prettier plots
+
+            win = pg.GraphicsLayoutWidget()
+            # win.ci.layout.setContentsMargins(0, 0, 0, 0)
+            
+            time = mdates.date2num(self.df.index)
+            p_power = win.addPlot(row=0, col=0)
+            p_power.plot(time, self.df['Pi [W]'], pen='b', name='Pi')
+            p_power.plot(time, self.df['Pr [W]'], pen='r', name='Pr')
+            p_power.setLabels(left='Power [W]')
+            # p_power.hideAxis("bottom")
+
+            p_voltage = win.addPlot(row=1, col=0)
+            p_voltage.plot(time, self.df['V1 [V]'], pen='b', name='V1')
+            p_voltage.plot(time, self.df['V2 [V]'], pen='r', name='V2')
+            p_voltage.setLabels(left='Voltage [V]')
+            
+            p_current = win.addPlot(row=2, col=0)
+            p_current.plot(time, self.df['I_CEA_max'], pen='b', name='I_CEA')
+            p_current.plot(time, self.df['I_DUT_max'], pen='r', name='I_DUT')
+            p_current.setLabels(left='Current [A]')
+
+            p_pressure = win.addPlot(row=3, col=0)
+            p_pressure.plot(time, self.df['JR3'], pen='b', name='JR3')
+            p_pressure.plot(time, self.df['JR4'], pen='r', name='JR4')            
+            p_pressure.setLogMode(False, True)
+            p_pressure.setLabels(left='Pressure [Pa]')
+
+            p_temp = win.addPlot(row=4, col=0)
+            p_temp.plot(time, self.df['TC1'], pen='b', name='TC1')
+            p_temp.plot(time, self.df['TC2'], pen='r', name='TC2')
+            p_temp.plot(time, self.df['TC3'], pen='c', name='TC3')
+            p_temp.plot(time, self.df['TC4'], pen='m', name='TC4')
+            p_temp.setLabels(left='Temperature [°C]', bottom='time')
+            
+            ps = (p_power, p_voltage, p_current, p_pressure, p_temp)            
+            
+            # grid
+            for p in ps:
+                p.showGrid(x = True, y = True, alpha = 0.3)
+            # synchronize x-scales
+            for p in ps[1:]:
+                p.setXLink(p_power)
+            
+            win.showMaximized()
+            win.setWindowTitle(f'SSA84 - {self.date} - {self.time} - f={self.fMHz} MHz')
+            win.show()
+
+            return win, ps
 
 def find_shots_indices(array, threshold):
     """
