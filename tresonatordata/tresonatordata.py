@@ -17,7 +17,7 @@ from os.path import exists
 plt.rcParams['toolbar'] = 'toolmanager'
 
 class TResonatorData():
-    def __init__(self, filename:str):
+    def __init__(self, filename:str, contact_type='staubli'):
         '''
         T-Resonator data 
 
@@ -25,6 +25,8 @@ class TResonatorData():
         ----------
         filename : str
             path to a .tdms or a .hdf file
+        contact_type : str
+            'staubli' (default) or 'arkadia'
 
         Returns
         -------
@@ -91,10 +93,13 @@ class TResonatorData():
                 
                 # # Post processing
                 self.raw_V_to_Vprobe()
-                self.Vprobe_to_Vmax_and_Imax()
+                self.Vprobe_to_Vmax_and_Imax(contact_type=contact_type)
                 self.raw_P_to_P()
                 self.raw_Vac_to_Vac()
                 self.raw_Tc_to_Tc()
+                # VSWR
+                self._df['SWR'] = (1 + np.sqrt(self._df['Pr_mean']/self._df['Pi_mean']))/(1 - np.sqrt(self._df['Pr_mean']/self._df['Pi_mean']))
+                
 
             # HDF file. 
             # These files have already been post-processed from TDMS raw data.
@@ -229,7 +234,7 @@ class TResonatorData():
         self._df['TC3_smooth'] = self._df['TC3'].ewm(span = 100).mean()
         self._df['TC4_smooth'] = self._df['TC4'].ewm(span = 100).mean()        
         
-    def Vprobe_to_Vmax_and_Imax(self):
+    def Vprobe_to_Vmax_and_Imax(self, contact_type='staubli'):
         """
         Deduce the max voltage and currents from the measured voltages.
         
@@ -245,24 +250,31 @@ class TResonatorData():
               --> 660 mm +/- TBD
                 We can use the same uncertainty
         
-        """
-        # VprobeCEA -> V max CEA: 1.000399052468527
-        # VprobeDUT -> V max DUT: 1.194556380161787
-        # VprobeCEA -> I short CEA: 0.03372662249801389
-        # VprobeDUT -> I short DUT: 0.06329607347946643
-      
+        """  
+        if contact_type == 'staubli':
+            # VprobeCEA -> V max CEA: 1.000560031267852
+            # VprobeDUT -> V max DUT: 1.2012721011809484
+            # VprobeCEA -> I short CEA: 0.03374709546042175
+            # VprobeDUT -> I short DUT: 0.06368098648604123
+    
+            self._df['V_CEA_max'] = 1.0006 * self._df['V1 [V]']
+            self._df['V_DUT_max'] = 1.2013 * self._df['V2 [V]']
+            
+            self._df['I_CEA_max'] = 0.0338 * self._df['V1 [V]']
+            self._df['I_DUT_max'] = 0.0637 * self._df['V2 [V]']
 
-        # VprobeCEA -> V max CEA: 1.000560031267852
-        # VprobeDUT -> V max DUT: 1.2012721011809484
-        # VprobeCEA -> I short CEA: 0.03374709546042175
-        # VprobeDUT -> I short DUT: 0.06368098648604123
+        elif contact_type == 'arkadia':
+            # VprobeCEA -> V max CEA: 1.0031203682262384
+            # VprobeDUT -> V max DUT: 1.2842791840489434
+            # VprobeCEA -> I short CEA: 0.0337109785482888
+            # VprobeDUT -> I short DUT: 0.06829468196254714
 
-        self._df['V_CEA_max'] = 1.0006 * self._df['V1 [V]']
-        self._df['V_DUT_max'] = 1.2013 * self._df['V2 [V]']
-        
-        self._df['I_CEA_max'] = 0.0338 * self._df['V1 [V]']
-        self._df['I_DUT_max'] = 0.0637 * self._df['V2 [V]']
-        
+            self._df['V_CEA_max'] = 1.0031 * self._df['V1 [V]']
+            self._df['V_DUT_max'] = 1.2843 * self._df['V2 [V]']
+            
+            self._df['I_CEA_max'] = 0.0337 * self._df['V1 [V]']
+            self._df['I_DUT_max'] = 0.0683 * self._df['V2 [V]']
+            
         
     def to_hdf(self, filename):
         """
@@ -398,6 +410,7 @@ def find_shots_indices(array, threshold):
     if idx_thres.size > 0:  # not empty
         # find indices where we change the RF shot   
         idx_starts = np.append(idx_thres[0], idx_thres[1:][np.diff(idx_thres) > 1])
+        
         idx_stops = np.append(idx_thres[0:-1][np.diff(idx_thres) > 1], idx_thres[-1])
  
         return idx_starts, idx_stops
@@ -471,8 +484,9 @@ def create_resumed_parameters(hdf_files):
     
     for hdf_file in tqdm(hdf_files):
         data = TResonatorData(hdf_file)
-    
-        idx_starts, idx_stops = find_shots_indices(data.df['V1 [V]'].values, 50)
+        # find start and stop times of each RF pulses
+        # smoothing data a bit to avoid counting breakdown as the stop of the pulse
+        idx_starts, idx_stops = find_shots_indices(data.df['V1 [V]'].ewm(span = 200).mean().values, 50)
     
         if idx_starts is not None:
             times = split_array(data.df['time_absolute'].values, idx_starts, idx_stops)
